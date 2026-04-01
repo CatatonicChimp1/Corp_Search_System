@@ -1,0 +1,52 @@
+package com.example.routes
+
+import com.example.db.Repos
+import io.ktor.http.*
+import io.ktor.server.application.*
+import io.ktor.server.auth.jwt.*
+import io.ktor.server.auth.principal
+import io.ktor.server.request.*
+import io.ktor.server.response.*
+import io.ktor.server.routing.*
+import kotlinx.serialization.Serializable
+
+@Serializable data class ClickReq(val eventId: Long, val docId: Long)
+@Serializable data class AggDto(val query: String, val count: Long)
+
+private fun ApplicationCall.actorEmail(): String =
+    principal<JWTPrincipal>()!!.payload.getClaim("email").asString()
+
+private fun ApplicationCall.actorRole(): String =
+    principal<JWTPrincipal>()!!.payload.getClaim("role").asString()
+
+fun Route.analyticsRoutes() {
+
+    post("/api/analytics/click") {
+        val req = call.receive<ClickReq>()
+        val ok = Repos.markSearchClick(req.eventId, req.docId)
+        if (!ok) {
+            call.respond(HttpStatusCode.NotFound, mapOf("error" to "Event not found"))
+            return@post
+        }
+        Repos.insertAudit(call.actorEmail(), "SEARCH_CLICK", "eventId=${req.eventId} docId=${req.docId}")
+        call.respond(mapOf("ok" to true))
+    }
+
+    get("/api/analytics/top-queries") {
+        if (call.actorRole() != "ADMIN") {
+            call.respond(HttpStatusCode.Forbidden, mapOf("error" to "Admin only"))
+            return@get
+        }
+        val limit = (call.request.queryParameters["limit"]?.toIntOrNull() ?: 20).coerceIn(1, 200)
+        call.respond(Repos.topQueries(limit).map { AggDto(it.query, it.count) })
+    }
+
+    get("/api/analytics/zero-results") {
+        if (call.actorRole() != "ADMIN") {
+            call.respond(HttpStatusCode.Forbidden, mapOf("error" to "Admin only"))
+            return@get
+        }
+        val limit = (call.request.queryParameters["limit"]?.toIntOrNull() ?: 20).coerceIn(1, 200)
+        call.respond(Repos.zeroResultQueries(limit).map { AggDto(it.query, it.count) })
+    }
+}

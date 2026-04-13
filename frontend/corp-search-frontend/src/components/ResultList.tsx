@@ -5,7 +5,7 @@ import { highlight } from "../app/highlight";
 const KIND_LABELS: Record<SearchHit["kind"], string> = {
     DOCUMENT: "Документ",
     FILE: "Файл",
-    SOURCE: "Источник",
+    SOURCE: "Группа данных",
     USER: "Пользователь"
 };
 

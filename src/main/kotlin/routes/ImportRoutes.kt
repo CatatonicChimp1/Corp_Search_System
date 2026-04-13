@@ -2,6 +2,8 @@ package com.example.corpsearch.routes
 
 import com.example.db.Documents
 import com.example.db.Repos
+import com.example.importing.JdbcImportService
+import com.example.importing.JdbcImportRequest
 import com.example.search.DocumentIndexService
 import com.example.storage.FileStorage
 import com.example.util.parseTags
@@ -17,6 +19,7 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.plugins.*
+import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.jetbrains.exposed.sql.update
 import java.io.File
@@ -28,7 +31,51 @@ private fun ApplicationCall.actorEmail(): String =
 private fun ApplicationCall.actorRole(): String =
     principal<JWTPrincipal>()!!.payload.getClaim("role").asString()
 
+@Serializable
+data class DbInspectReq(
+    val jdbcUrl: String,
+    val username: String = "",
+    val password: String = ""
+)
+
+@Serializable
+data class DbTableDto(val name: String, val estimatedRows: Int? = null)
+
+@Serializable
+data class DbImportReq(
+    val jdbcUrl: String,
+    val username: String = "",
+    val password: String = "",
+    val tables: List<String>,
+    val sourceId: Long,
+    val status: String = "PUBLISHED",
+    val rowLimitPerTable: Int = 200,
+    val tagsCsv: String? = null
+)
+
 fun Route.importRoutes(storageDirPath: String = FileStorage.DEFAULT_UPLOADS_DIR) {
+    post("/api/import/db/inspect") {
+        if (call.actorRole() != "ADMIN") {
+            call.respond(HttpStatusCode.Forbidden, mapOf("error" to "Admin only"))
+            return@post
+        }
+        val req = call.receive<DbInspectReq>()
+        val jdbcUrl = requireTrimmed(req.jdbcUrl, "jdbcUrl", 10, 1_000)
+
+        try {
+            val tables = JdbcImportService.inspectTables(
+                jdbcUrl = jdbcUrl,
+                username = req.username.trim(),
+                password = req.password
+            ).map { DbTableDto(it.name, it.estimatedRows) }
+
+            Repos.insertAudit(call.actorEmail(), "INSPECT_DB", "tables=${tables.size}")
+            call.respond(tables)
+        } catch (e: IllegalArgumentException) {
+            call.respond(HttpStatusCode.BadRequest, mapOf("error" to (e.message ?: "Invalid DB connection")))
+        }
+    }
+
     post("/api/docs/import") {
         val actor = call.actorEmail()
         val isAdmin = call.actorRole() == "ADMIN"
@@ -113,5 +160,58 @@ fun Route.importRoutes(storageDirPath: String = FileStorage.DEFAULT_UPLOADS_DIR)
         DocumentIndexService.reindexDocument(id, storageDirPath)
         Repos.insertAudit(actor, "IMPORT_DOC", "id=$id sourceId=$sourceId status=$status filename=$filename")
         call.respond(HttpStatusCode.Created, mapOf("id" to id))
+    }
+
+    post("/api/docs/import-db") {
+        val actor = call.actorEmail()
+        val isAdmin = call.actorRole() == "ADMIN"
+        val userId = Repos.getUserIdByEmail(actor)!!
+        if (!isAdmin) {
+            call.respond(HttpStatusCode.Forbidden, mapOf("error" to "Admin only"))
+            return@post
+        }
+        val req = call.receive<DbImportReq>()
+
+        if (req.status !in setOf("DRAFT", "PUBLISHED", "ARCHIVED")) {
+            call.respond(HttpStatusCode.BadRequest, mapOf("error" to "status must be DRAFT/PUBLISHED/ARCHIVED"))
+            return@post
+        }
+
+        if (!Repos.canWriteSource(userId, req.sourceId, isAdmin)) {
+            call.respond(HttpStatusCode.Forbidden, mapOf("error" to "No write access to source"))
+            return@post
+        }
+
+        val jdbcUrl = requireTrimmed(req.jdbcUrl, "jdbcUrl", 10, 1_000)
+        val tables = req.tables.map { it.trim() }.filter { it.isNotBlank() }.distinct()
+        if (tables.isEmpty()) {
+            call.respond(HttpStatusCode.BadRequest, mapOf("error" to "At least one table must be selected"))
+            return@post
+        }
+
+        try {
+            val result = JdbcImportService.importTables(
+                JdbcImportRequest(
+                    jdbcUrl = jdbcUrl,
+                    username = req.username.trim(),
+                    password = req.password,
+                    tables = tables,
+                    sourceId = req.sourceId,
+                    actor = actor,
+                    status = req.status,
+                    rowLimitPerTable = req.rowLimitPerTable.coerceIn(1, 2_000),
+                    tags = parseTags(req.tagsCsv)
+                )
+            )
+
+            Repos.insertAudit(
+                actor,
+                "IMPORT_DB",
+                "sourceId=${req.sourceId} tables=${tables.joinToString(",")} importedDocs=${result.importedDocs}"
+            )
+            call.respond(HttpStatusCode.Created, result)
+        } catch (e: IllegalArgumentException) {
+            call.respond(HttpStatusCode.BadRequest, mapOf("error" to (e.message ?: "Invalid DB import request")))
+        }
     }
 }

@@ -19,12 +19,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     </div>
                     <div className="nav">
                         <a className="btn" href="#/search">Поиск</a>
-                        <a className="btn" href="#/admin/sources">Источники</a>
+                        <a className="btn" href="#/admin/groups">Группы данных</a>
                         <a className="btn" href="#/admin/users">Пользователи</a>
                         <a className="btn" href="#/admin/invites">Инвайты</a>
                         <a className="btn" href="#/admin/audit">Аудит</a>
                         <a className="btn" href="#/admin/import">Импорт</a>
-                        <a className="btn" href="#/admin/analytics">Аналитика</a>
+                        <a className="btn" href="#/admin/analytics">Метрики</a>
                         <button
                             className="btn danger"
                             onClick={() => {

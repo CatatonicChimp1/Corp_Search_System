@@ -21,7 +21,7 @@ export function DocPage({ id }: { id: number }) {
     const source = sources.find((item) => item.id === doc?.sourceId);
     const tags = doc?.tags ?? [];
 
-    if (!doc) return <div className="card muted">Загрузка…</div>;
+    if (!doc) return <div className="card muted">Загрузка...</div>;
 
     return (
         <div className="stack">
@@ -32,7 +32,7 @@ export function DocPage({ id }: { id: number }) {
                 </div>
 
                 <div className="muted small">
-                    Источник: {source ? `${source.name} (${source.kind})` : doc.sourceId} • Автор: {doc.author || "—"}
+                    Группа данных: {source ? `${source.name} (${source.kind})` : doc.sourceId} • Автор: {doc.author || "—"}
                     <br />
                     Обновлено: {doc.updatedAt}
                 </div>

@@ -4,7 +4,7 @@ import type { SourceDto } from "../app/api";
 const SCOPE_LABELS: Record<string, string> = {
     DOCUMENTS: "Документы",
     FILES: "Файлы",
-    SOURCES: "Источники",
+    SOURCES: "Группы данных",
     USERS: "Пользователи"
 };
 
@@ -42,7 +42,7 @@ export function Filters({
                     value={sourceId ? String(sourceId) : ""}
                     onChange={(e) => setSourceId(e.target.value ? Number(e.target.value) : undefined)}
                 >
-                    <option value="">Все источники</option>
+                    <option value="">Все группы данных</option>
                     {sources
                         .filter((source) => source.isActive)
                         .map((source) => (

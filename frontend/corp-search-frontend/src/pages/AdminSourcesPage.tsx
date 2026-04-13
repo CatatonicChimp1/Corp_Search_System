@@ -3,15 +3,14 @@ import { api, type SourceDto } from "../app/api";
 import { getRole } from "../app/auth";
 import { Toast } from "../ui/Toast";
 
-const KINDS = ["WIKI", "FILES", "CRM", "MAIL", "MANUAL", "OTHER"];
+const KINDS = ["HR", "IT", "FINANCE", "FILES", "CRM", "MAIL", "DB", "MANUAL", "OTHER"];
 
 export function AdminSourcesPage() {
     const role = getRole();
     const [items, setItems] = useState<SourceDto[]>([]);
     const [err, setErr] = useState<string | null>(null);
-
     const [name, setName] = useState("");
-    const [kind, setKind] = useState("WIKI");
+    const [kind, setKind] = useState("HR");
     const [description, setDescription] = useState("");
 
     async function reload() {
@@ -23,11 +22,11 @@ export function AdminSourcesPage() {
     }
 
     useEffect(() => {
-        reload();
+        void reload();
     }, []);
 
     if (role !== "ADMIN") {
-        return <div className="card muted">Только ADMIN может управлять источниками.</div>;
+        return <div className="card muted">Только ADMIN может управлять группами данных.</div>;
     }
 
     async function create() {
@@ -67,19 +66,36 @@ export function AdminSourcesPage() {
     return (
         <div className="stack">
             <div className="card stack">
-                <div style={{ fontWeight: 900, fontSize: 18 }}>Источники данных</div>
+                <div style={{ fontWeight: 900, fontSize: 18 }}>Группы данных</div>
                 <div className="muted small">
-                    Источник описывает контур знаний: HR, IT, продажи, бухгалтерия, файловое хранилище или wiki.
+                    Группа данных описывает логическую область корпоративной информации: HR, IT, продажи,
+                    бухгалтерию, файловое хранилище, CRM или внешнюю БД.
                 </div>
 
                 <div className="row">
-                    <input className="field" style={{ flex: 1, minWidth: 220 }} value={name} onChange={(e) => setName(e.target.value)} placeholder="Название источника" />
-                    <select className="field" style={{ width: 160 }} value={kind} onChange={(e) => setKind(e.target.value)}>
-                        {KINDS.map((item) => <option key={item} value={item}>{item}</option>)}
+                    <input
+                        className="field"
+                        style={{ flex: 1, minWidth: 220 }}
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="Название группы"
+                    />
+                    <select className="field" style={{ width: 180 }} value={kind} onChange={(e) => setKind(e.target.value)}>
+                        {KINDS.map((item) => (
+                            <option key={item} value={item}>
+                                {item}
+                            </option>
+                        ))}
                     </select>
                 </div>
-                <input className="field" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Описание, опционально" />
-                <button className="btn primary" onClick={create}>Добавить</button>
+
+                <input
+                    className="field"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Краткое описание группы"
+                />
+                <button className="btn primary" onClick={create}>Добавить группу</button>
             </div>
 
             <div className="stack">
@@ -91,7 +107,9 @@ export function AdminSourcesPage() {
                                     {source.name} <span className="muted small">({source.kind})</span>
                                 </div>
                                 <div className="muted small">{source.description || "Без описания"}</div>
-                                <div className="muted small">Статус: {source.isActive ? "Активен" : "Отключён"}</div>
+                                <div className="muted small">
+                                    Статус: {source.isActive ? "Активна" : "Отключена"}
+                                </div>
                             </div>
 
                             <div className="row">

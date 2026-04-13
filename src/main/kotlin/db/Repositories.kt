@@ -7,6 +7,7 @@ import org.jetbrains.exposed.sql.SqlExpressionBuilder.like
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 
 data class UserRow(val id: Long, val email: String, val passwordHash: String, val role: String)
 data class SourceRow(val id: Long, val name: String, val kind: String, val description: String?, val isActive: Boolean)
@@ -64,6 +65,23 @@ data class SearchEventRow(
     val id: Long, val at: java.time.Instant, val actorEmail: String?,
     val query: String, val sourceId: Long?, val tag: String?, val resultsCount: Int, val clickedDocId: Long?
 )
+
+data class AnalyticsSummaryRow(
+    val totalDocuments: Long,
+    val publishedDocuments: Long,
+    val totalGroups: Long,
+    val activeGroups: Long,
+    val totalSearches: Long,
+    val searchesLast7Days: Long,
+    val zeroResultSearches: Long,
+    val zeroResultRate: Double,
+    val clickedSearches: Long,
+    val clickThroughRate: Double,
+    val importsTotal: Long,
+    val importsLast7Days: Long
+)
+
+data class GroupDocumentMetricRow(val sourceId: Long, val sourceName: String, val documents: Long)
 
 object Repos {
 
@@ -590,6 +608,53 @@ object Repos {
             .orderBy(SearchEvents.id.count(), SortOrder.DESC)
             .limit(limit)
             .map { QueryAgg(it[SearchEvents.query], it[SearchEvents.id.count()]) }
+    }
+
+    fun analyticsSummary(): AnalyticsSummaryRow = transaction {
+        val since = Instant.now().minus(7, ChronoUnit.DAYS)
+        val totalDocuments = Documents.selectAll().count()
+        val publishedDocuments = Documents.select { Documents.status eq "PUBLISHED" }.count()
+        val totalGroups = Sources.selectAll().count()
+        val activeGroups = Sources.select { Sources.isActive eq true }.count()
+        val totalSearches = SearchEvents.selectAll().count()
+        val searchesLast7Days = SearchEvents.select { SearchEvents.at greaterEq since }.count()
+        val zeroResultSearches = SearchEvents.select { SearchEvents.resultsCount eq 0 }.count()
+        val clickedSearches = SearchEvents.select { SearchEvents.clickedDocId.isNotNull() }.count()
+        val importsTotal = AuditLog.select { AuditLog.action inList listOf("IMPORT_DOC", "IMPORT_DB") }.count()
+        val importsLast7Days = AuditLog.select {
+            (AuditLog.action inList listOf("IMPORT_DOC", "IMPORT_DB")) and (AuditLog.at greaterEq since)
+        }.count()
+
+        AnalyticsSummaryRow(
+            totalDocuments = totalDocuments,
+            publishedDocuments = publishedDocuments,
+            totalGroups = totalGroups,
+            activeGroups = activeGroups,
+            totalSearches = totalSearches,
+            searchesLast7Days = searchesLast7Days,
+            zeroResultSearches = zeroResultSearches,
+            zeroResultRate = if (totalSearches == 0L) 0.0 else zeroResultSearches.toDouble() / totalSearches.toDouble(),
+            clickedSearches = clickedSearches,
+            clickThroughRate = if (totalSearches == 0L) 0.0 else clickedSearches.toDouble() / totalSearches.toDouble(),
+            importsTotal = importsTotal,
+            importsLast7Days = importsLast7Days
+        )
+    }
+
+    fun documentsByGroup(limit: Int = 10): List<GroupDocumentMetricRow> = transaction {
+        (Sources leftJoin Documents)
+            .slice(Sources.id, Sources.name, Documents.id.count())
+            .selectAll()
+            .groupBy(Sources.id, Sources.name)
+            .orderBy(Documents.id.count(), SortOrder.DESC)
+            .limit(limit)
+            .map {
+                GroupDocumentMetricRow(
+                    sourceId = it[Sources.id],
+                    sourceName = it[Sources.name],
+                    documents = it[Documents.id.count()]
+                )
+            }
     }
 
 }

@@ -22,12 +22,10 @@ export function SearchPage({
 }: SearchPageProps) {
     const [sources, setSources] = useState<SourceDto[]>([]);
     const [saved, setSaved] = useState<SavedSearchDto[]>([]);
-
     const [q, setQ] = useState(initialQuery ?? "");
     const [sourceId, setSourceId] = useState<number | undefined>(initialSourceId);
     const [tag, setTag] = useState(initialTag ?? "");
     const [scopes, setScopes] = useState<string[]>(initialScopes ?? DEFAULT_SCOPES);
-
     const [res, setRes] = useState<SearchRes | null>(null);
     const [loading, setLoading] = useState(false);
     const [err, setErr] = useState<string | null>(null);
@@ -37,13 +35,13 @@ export function SearchPage({
         try {
             setSaved(await api.listSavedSearches());
         } catch {
-            // saved-search sidebar is non-critical
+            // Sidebar is non-critical for search flow.
         }
     }
 
     useEffect(() => {
         api.listSources().then(setSources).catch((e) => setErr(String(e?.message || e)));
-        reloadSaved();
+        void reloadSaved();
     }, []);
 
     useEffect(() => {
@@ -85,6 +83,7 @@ export function SearchPage({
         if (nextSourceId) params.set("sourceId", String(nextSourceId));
         if (nextTag.trim()) params.set("tag", nextTag.trim());
         if (nextScopes.length) params.set("scopes", nextScopes.join(","));
+
         const nextHash = params.toString() ? `#/search?${params.toString()}` : "#/search";
         if (location.hash === nextHash) {
             void executeSearch(nextQ, nextSourceId, nextTag, nextScopes);
@@ -127,7 +126,7 @@ export function SearchPage({
         try {
             await api.click(res.eventId, docId);
         } catch {
-            // analytics should not block navigation
+            // Analytics should not block navigation.
         }
     }
 
@@ -174,15 +173,13 @@ export function SearchPage({
                         <button className="btn" onClick={save}>Сохранить</button>
                     </div>
 
-                    <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
-                        <div className="muted small">
-                            URL теперь хранит текст запроса, источник, тег и области поиска.
-                        </div>
-                        <button className="btn" onClick={() => navigateSearch(q, sourceId, tag, scopes)}>Обновить URL</button>
+                    <div className="muted small">
+                        URL хранит текст запроса, группу данных, тег и области поиска. Это позволяет делиться
+                        ссылкой и нормально использовать back/forward в браузере.
                     </div>
                 </div>
 
-                {loading && <div className="card muted">Ищем…</div>}
+                {loading && <div className="card muted">Ищем...</div>}
 
                 {!loading && res && (
                     <div className="card">
@@ -196,9 +193,7 @@ export function SearchPage({
                     </div>
                 )}
 
-                {!loading && res && (
-                    <ResultList hits={res.hits} query={q} onOpen={onOpenResult} />
-                )}
+                {!loading && res && <ResultList hits={res.hits} query={q} onOpen={onOpenResult} />}
 
                 {err && <Toast text={err} onClose={() => setErr(null)} />}
             </div>

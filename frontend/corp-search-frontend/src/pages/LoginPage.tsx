@@ -9,7 +9,7 @@ export function LoginPage() {
     const [err, setErr] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
 
-    async function submit(e: React.FormEvent) {
+    async function submit(e: React.ChangeEvent) {
         e.preventDefault();
         setLoading(true);
         try {

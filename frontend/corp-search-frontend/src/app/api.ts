@@ -44,6 +44,7 @@ export type DocDto = {
     createdAt: string;
     updatedAt: string;
 };
+
 export type UserDto = { id: number; email: string; role: string };
 
 export type InviteDto = {
@@ -68,21 +69,55 @@ export type AuditDto = {
 
 export type AggDto = { query: string; count: number };
 
+export type AnalyticsSummaryDto = {
+    totalDocuments: number;
+    publishedDocuments: number;
+    totalGroups: number;
+    activeGroups: number;
+    totalSearches: number;
+    searchesLast7Days: number;
+    zeroResultSearches: number;
+    zeroResultRate: number;
+    clickedSearches: number;
+    clickThroughRate: number;
+    importsTotal: number;
+    importsLast7Days: number;
+};
+
+export type GroupMetricDto = {
+    sourceId: number;
+    sourceName: string;
+    documents: number;
+};
+
+export type DbTableDto = {
+    name: string;
+    estimatedRows?: number | null;
+};
+
+export type DbImportRes = {
+    importedDocs: number;
+    tables: string[];
+};
+
 export type SavedSearchDto = {
-    id: number; name: string; query: string; sourceId?: number | null; tag?: string | null; createdAt: string;
+    id: number;
+    name: string;
+    query: string;
+    sourceId?: number | null;
+    tag?: string | null;
+    createdAt: string;
 };
 
 export type PermDto = { email: string; canRead: boolean; canWrite: boolean };
-
-
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const token = getToken();
     const headers: Record<string, string> = {
         "Content-Type": "application/json",
-        ...(init?.headers as any)
+        ...(init?.headers as Record<string, string> | undefined)
     };
-    if (token) headers["Authorization"] = `Bearer ${token}`;
+    if (token) headers.Authorization = `Bearer ${token}`;
 
     const res = await fetch(`${API_BASE}${path}`, { ...init, headers });
     if (!res.ok) {
@@ -105,11 +140,17 @@ export const api = {
     },
 
     createSource(req: { name: string; kind: string; description?: string }) {
-        return request<SourceDto>("/api/sources", { method: "POST", body: JSON.stringify(req) });
+        return request<SourceDto>("/api/sources", {
+            method: "POST",
+            body: JSON.stringify(req)
+        });
     },
 
     updateSource(id: number, req: { name: string; kind: string; description?: string | null; isActive: boolean }) {
-        return request<{ ok: boolean }>(`/api/sources/${id}`, { method: "PUT", body: JSON.stringify(req) });
+        return request<{ ok: boolean }>(`/api/sources/${id}`, {
+            method: "PUT",
+            body: JSON.stringify(req)
+        });
     },
 
     deleteSource(id: number) {
@@ -132,11 +173,17 @@ export const api = {
     },
 
     createDoc(req: { sourceId: number; title: string; body: string; author?: string; tagsCsv?: string }) {
-        return request<{ id: number }>(`/api/docs`, { method: "POST", body: JSON.stringify(req) });
+        return request<{ id: number }>("/api/docs", {
+            method: "POST",
+            body: JSON.stringify(req)
+        });
     },
 
     updateDoc(id: number, req: { title: string; body: string; author?: string; tagsCsv?: string }) {
-        return request<{ ok: boolean }>(`/api/docs/${id}`, { method: "PUT", body: JSON.stringify(req) });
+        return request<{ ok: boolean }>(`/api/docs/${id}`, {
+            method: "PUT",
+            body: JSON.stringify(req)
+        });
     },
 
     deleteDoc(id: number) {
@@ -148,7 +195,10 @@ export const api = {
     },
 
     createUser(req: { email: string; password: string; role: string }) {
-        return request<UserDto>("/api/users", { method: "POST", body: JSON.stringify(req) });
+        return request<UserDto>("/api/users", {
+            method: "POST",
+            body: JSON.stringify(req)
+        });
     },
 
     updateUserRole(id: number, role: string) {
@@ -168,12 +218,16 @@ export const api = {
     deleteUser(id: number) {
         return request<{ ok: boolean }>(`/api/users/${id}`, { method: "DELETE" });
     },
+
     listInvites() {
         return request<InviteDto[]>("/api/invites");
     },
 
     createInvite(req: { email: string; role: string; ttlHours: number }) {
-        return request<CreateInviteRes>("/api/invites", { method: "POST", body: JSON.stringify(req) });
+        return request<CreateInviteRes>("/api/invites", {
+            method: "POST",
+            body: JSON.stringify(req)
+        });
     },
 
     deleteInvite(id: number) {
@@ -196,7 +250,10 @@ export const api = {
     },
 
     click(eventId: number, docId: number) {
-        return request<{ ok: boolean }>(`/api/analytics/click`, { method: "POST", body: JSON.stringify({ eventId, docId }) });
+        return request<{ ok: boolean }>("/api/analytics/click", {
+            method: "POST",
+            body: JSON.stringify({ eventId, docId })
+        });
     },
 
     topQueries(limit = 20) {
@@ -207,12 +264,23 @@ export const api = {
         return request<AggDto[]>(`/api/analytics/zero-results?limit=${limit}`);
     },
 
+    analyticsSummary() {
+        return request<AnalyticsSummaryDto>("/api/analytics/summary");
+    },
+
+    analyticsGroups(limit = 10) {
+        return request<GroupMetricDto[]>(`/api/analytics/groups?limit=${limit}`);
+    },
+
     listSavedSearches() {
-        return request<SavedSearchDto[]>(`/api/saved-searches`);
+        return request<SavedSearchDto[]>("/api/saved-searches");
     },
 
     createSavedSearch(req: { name: string; query: string; sourceId?: number; tag?: string }) {
-        return request<{ id: number }>(`/api/saved-searches`, { method: "POST", body: JSON.stringify(req) });
+        return request<{ id: number }>("/api/saved-searches", {
+            method: "POST",
+            body: JSON.stringify(req)
+        });
     },
 
     deleteSavedSearch(id: number) {
@@ -224,21 +292,50 @@ export const api = {
     },
 
     setSourcePerm(sourceId: number, req: { email: string; canRead: boolean; canWrite: boolean }) {
-        return request<{ ok: boolean }>(`/api/sources/${sourceId}/permissions`, { method: "POST", body: JSON.stringify(req) });
+        return request<{ ok: boolean }>(`/api/sources/${sourceId}/permissions`, {
+            method: "POST",
+            body: JSON.stringify(req)
+        });
     },
 
     deleteSourcePerm(sourceId: number, email: string) {
-        return request<{ ok: boolean }>(`/api/sources/${sourceId}/permissions?email=${encodeURIComponent(email)}`, { method: "DELETE" });
+        return request<{ ok: boolean }>(
+            `/api/sources/${sourceId}/permissions?email=${encodeURIComponent(email)}`,
+            { method: "DELETE" }
+        );
     },
 
     async importDoc(form: FormData) {
         const token = getToken();
-        const res = await fetch(`http://localhost:8080/api/docs/import`, {
+        const res = await fetch(`${API_BASE}/api/docs/import`, {
             method: "POST",
             headers: token ? { Authorization: `Bearer ${token}` } : undefined,
             body: form
         });
         if (!res.ok) throw new Error(await res.text());
-        return res.json() as Promise<{ id: number }>;
+        return await res.json() as Promise<{ id: number }>;
     },
+
+    inspectDb(req: { jdbcUrl: string; username?: string; password?: string }) {
+        return request<DbTableDto[]>("/api/import/db/inspect", {
+            method: "POST",
+            body: JSON.stringify(req)
+        });
+    },
+
+    importDb(req: {
+        jdbcUrl: string;
+        username?: string;
+        password?: string;
+        tables: string[];
+        sourceId: number;
+        status?: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+        rowLimitPerTable?: number;
+        tagsCsv?: string;
+    }) {
+        return request<DbImportRes>("/api/docs/import-db", {
+            method: "POST",
+            body: JSON.stringify(req)
+        });
+    }
 };
